@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PlusCircle, CheckCircle2, Circle, Clock, Trash2, MessageSquare, Send } from 'lucide-react'
 import { format } from 'date-fns'
 import { TaskModal } from './TaskModal'
@@ -34,13 +34,41 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
   const [commentText, setCommentText] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
 
+  // Optimistic UI State
+  const [optimisticTasks, setOptimisticTasks] = useState<Task[]>(tasks || [])
+
+  // Sync state when server props change
+  useEffect(() => {
+    setOptimisticTasks(tasks || [])
+  }, [tasks])
+
   const handleToggle = async (id: string, completed: boolean) => {
-    await toggleTaskComplete(id, completed)
+    // 1. Optimistically update UI instantly
+    setOptimisticTasks(prev => prev.map(t => t.id === id ? { ...t, completed } : t))
+    
+    // 2. Perform server action in background
+    try {
+      await toggleTaskComplete(id, completed)
+    } catch (error) {
+      console.error(error)
+      // Revert if it fails
+      setOptimisticTasks(tasks || [])
+    }
   }
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this task?')) {
-      await deleteTask(id)
+      // 1. Optimistically remove from UI instantly
+      setOptimisticTasks(prev => prev.filter(t => t.id !== id))
+      
+      // 2. Perform server action in background
+      try {
+        await deleteTask(id)
+      } catch (error) {
+        console.error(error)
+        // Revert if it fails
+        setOptimisticTasks(tasks || [])
+      }
     }
   }
 
@@ -48,13 +76,36 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
     e.preventDefault()
     if (!commentText.trim()) return
 
+    // Create a fake comment to show instantly
+    const newCommentText = commentText
+    const optimisticComment: Comment = {
+      id: Date.now().toString(), // fake ID
+      comment: newCommentText,
+      created_at: new Date().toISOString()
+    }
+
+    // 1. Optimistically add comment to UI instantly
+    setOptimisticTasks(prev => prev.map(t => {
+      if (t.id === taskId) {
+        return { ...t, task_comments: [...(t.task_comments || []), optimisticComment] }
+      }
+      return t
+    }))
+    
+    setCommentText('')
     setIsSubmittingComment(true)
+
+    // 2. Perform server action in background
     try {
       const formData = new FormData()
       formData.append('task_id', taskId)
-      formData.append('comment', commentText)
+      formData.append('comment', newCommentText)
       await addTaskComment(formData)
-      setCommentText('')
+    } catch (error) {
+      console.error(error)
+      // Revert if it fails
+      setOptimisticTasks(tasks || [])
+      setCommentText(newCommentText)
     } finally {
       setIsSubmittingComment(false)
     }
@@ -83,24 +134,24 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
       </header>
 
       <div className="space-y-4">
-        {!tasks || tasks.length === 0 ? (
+        {optimisticTasks.length === 0 ? (
           <div className="text-center py-12 rounded-xl border-2 border-dashed border-gray-200 dark:border-zinc-800">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">No tasks for today</h3>
             <p className="mt-1 text-gray-500">Get started by creating a new task.</p>
           </div>
         ) : (
-          tasks.map((task) => (
+          optimisticTasks.map((task) => (
             <div 
               key={task.id} 
-              className={`group flex flex-col p-4 rounded-xl border transition-colors ${
+              className={`group flex flex-col p-4 rounded-xl border transition-all duration-200 ease-in-out ${
                 task.completed 
-                  ? 'bg-gray-50 border-gray-200 dark:bg-zinc-900/50 dark:border-zinc-800 opacity-70' 
+                  ? 'bg-gray-50 border-gray-200 dark:bg-zinc-900/50 dark:border-zinc-800 opacity-60' 
                   : 'bg-white border-gray-200 dark:bg-zinc-900 dark:border-zinc-800 shadow-sm'
               }`}
             >
               <div className="flex items-start gap-4">
                 <button 
-                  onClick={() => handleToggle(task.id, !task.completed)}
+                  onClick={(e) => { e.stopPropagation(); handleToggle(task.id, !task.completed); }}
                   className="mt-0.5 flex-shrink-0 text-gray-400 hover:text-blue-600 transition-colors"
                 >
                   {task.completed ? (
@@ -111,7 +162,7 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
                 </button>
                 
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleExpand(task.id)}>
-                  <h3 className={`text-base font-medium truncate ${task.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                  <h3 className={`text-base font-medium truncate transition-all ${task.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
                     {task.title}
                   </h3>
                   {task.description && (
@@ -121,7 +172,7 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
                   )}
                   
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-medium">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-md ${
+                    <span className={`inline-flex items-center px-2 py-1 rounded-md transition-colors ${
                       task.priority === 'high' ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400' :
                       task.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400' :
                       'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400'
@@ -148,7 +199,7 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
                 </div>
 
                 <button 
-                  onClick={() => handleDelete(task.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
                   className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
                   aria-label="Delete task"
                 >
@@ -157,16 +208,16 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
               </div>
 
               {/* Expandable Comments Section */}
-              {expandedTaskId === task.id && (
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800 ml-10">
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTaskId === task.id ? 'max-h-96 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}>
+                <div className="pt-4 border-t border-gray-100 dark:border-zinc-800 ml-10">
                   <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Daily Progress</h4>
                   
-                  <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
+                  <div className="space-y-3 mb-4 max-h-40 overflow-y-auto pr-2">
                     {(!task.task_comments || task.task_comments.length === 0) ? (
                       <p className="text-sm text-gray-500 italic">No progress logged yet.</p>
                     ) : (
                       task.task_comments.map(comment => (
-                        <div key={comment.id} className="bg-gray-50 dark:bg-zinc-800/50 p-3 rounded-lg">
+                        <div key={comment.id} className="bg-gray-50 dark:bg-zinc-800/50 p-3 rounded-lg animate-in fade-in slide-in-from-bottom-2">
                           <p className="text-sm text-gray-700 dark:text-gray-300">{comment.comment}</p>
                           <span className="text-xs text-gray-400 mt-1 block">
                             {format(new Date(comment.created_at), 'MMM d, h:mm a')}
@@ -182,7 +233,7 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       placeholder="Add a progress note..."
-                      className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
                     />
                     <button
                       type="submit"
@@ -193,7 +244,7 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
                     </button>
                   </form>
                 </div>
-              )}
+              </div>
             </div>
           ))
         )}
