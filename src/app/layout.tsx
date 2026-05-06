@@ -8,6 +8,15 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Day Planner",
   description: "AI-powered Daily Planner",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" }
+  ],
+  appleWebApp: {
+    capable: true,
+    title: "Day Planner",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({
