@@ -36,6 +36,40 @@ export async function createTask(formData: FormData) {
   revalidatePath('/', 'layout')
 }
 
+export async function updateTask(taskId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const title = formData.get('title') as string
+  const description = formData.get('description') as string
+  const priority = formData.get('priority') as string
+  const start_date = formData.get('start_date') as string
+  const end_date = formData.get('end_date') as string
+  const duration = parseInt(formData.get('duration') as string) || 30
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      title,
+      description,
+      priority,
+      start_date,
+      end_date,
+      duration
+    })
+    .eq('id', taskId)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('Error updating task:', error)
+    throw new Error('Failed to update task')
+  }
+
+  revalidatePath('/', 'layout')
+}
+
 export async function toggleTaskComplete(taskId: string, completed: boolean) {
   const supabase = await createClient()
 

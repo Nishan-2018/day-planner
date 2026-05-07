@@ -1,29 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { 
-  format, 
-  addMonths, 
-  subMonths, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  isSameMonth, 
-  isSameDay, 
-  addDays, 
-  parseISO,
-  isWithinInterval
-} from 'date-fns'
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight, PlusCircle } from 'lucide-react'
 import { TaskModal } from './TaskModal'
 
 interface Task {
   id: string
   title: string
+  description: string | null
+  priority: string
+  duration: number | null
+  completed: boolean
   start_date: string
   end_date: string
-  completed: boolean
 }
 
 interface CalendarClientProps {
@@ -31,149 +21,149 @@ interface CalendarClientProps {
 }
 
 export function CalendarClient({ tasks }: CalendarClientProps) {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null)
 
-  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1))
-  const prevMonth = () => setCurrentDate(subMonths(currentDate, 1))
+  const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1))
+  const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1))
 
   const handleDateClick = (day: Date) => {
     setSelectedDate(day)
+    setTaskToEdit(null)
     setIsModalOpen(true)
   }
 
-  // Generate calendar grid
-  const monthStart = startOfMonth(currentDate)
-  const monthEnd = endOfMonth(monthStart)
-  const startDate = startOfWeek(monthStart)
-  const endDate = endOfWeek(monthEnd)
-
-  const dateFormat = "d"
-  const rows = []
-  let days = []
-  let day = startDate
-  let formattedDate = ""
-
-  while (day <= endDate) {
-    for (let i = 0; i < 7; i++) {
-      formattedDate = format(day, dateFormat)
-      const cloneDay = day
-      
-      // Get tasks for this day (if the day falls between start_date and end_date)
-      const dayTasks = tasks?.filter(t => {
-        const start = parseISO(t.start_date)
-        const end = parseISO(t.end_date)
-        // Reset time to ensure correct comparison
-        start.setHours(0,0,0,0)
-        end.setHours(23,59,59,999)
-        const current = new Date(cloneDay)
-        return current >= start && current <= end
-      }) || []
-
-      days.push(
-        <div
-          key={day.toString()}
-          onClick={() => handleDateClick(cloneDay)}
-          className={`min-h-[100px] p-2 border border-gray-100 dark:border-zinc-800 transition-colors cursor-pointer group ${
-            !isSameMonth(day, monthStart)
-              ? "bg-gray-50/50 dark:bg-zinc-900/50 text-gray-400"
-              : isSameDay(day, new Date())
-              ? "bg-blue-50/30 dark:bg-blue-900/10"
-              : "bg-white dark:bg-zinc-900 hover:bg-gray-50 dark:hover:bg-zinc-800/50"
-          }`}
-        >
-          <div className="flex justify-between items-start">
-            <span className={`text-sm font-medium ${
-              isSameDay(day, new Date()) ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 rounded-full w-6 h-6 flex items-center justify-center' : 'text-gray-700 dark:text-gray-300'
-            }`}>
-              {formattedDate}
-            </span>
-            <PlusCircle size={16} className="text-gray-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-          
-          <div className="mt-2 space-y-1">
-            {dayTasks.slice(0, 3).map(task => (
-              <div 
-                key={task.id} 
-                className={`text-xs truncate px-1.5 py-0.5 rounded ${
-                  task.completed 
-                    ? 'bg-gray-100 dark:bg-zinc-800 text-gray-500 line-through' 
-                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                }`}
-              >
-                {task.title}
-              </div>
-            ))}
-            {dayTasks.length > 3 && (
-              <div className="text-xs text-gray-500 font-medium pl-1">
-                +{dayTasks.length - 3} more
-              </div>
-            )}
-          </div>
-        </div>
-      )
-      day = addDays(day, 1)
-    }
-    rows.push(
-      <div className="grid grid-cols-7" key={day.toString()}>
-        {days}
-      </div>
-    )
-    days = []
+  const handleTaskClick = (e: React.MouseEvent, task: Task) => {
+    e.stopPropagation()
+    setTaskToEdit(task)
+    setIsModalOpen(true)
   }
 
-  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-  return (
-    <>
-      <header className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {format(currentDate, 'MMMM yyyy')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={prevMonth}
-            className="p-2 rounded-lg border border-gray-200 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-gray-600 dark:text-gray-300"
-          >
+  const renderHeader = () => {
+    return (
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+          {format(currentMonth, 'MMMM yyyy')}
+        </h2>
+        <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-1">
+          <button onClick={prevMonth} className="p-2 rounded hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition text-gray-600 dark:text-gray-300">
             <ChevronLeft size={20} />
           </button>
-          <button 
-            onClick={() => setCurrentDate(new Date())}
-            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors font-medium text-sm text-gray-600 dark:text-gray-300"
-          >
+          <button onClick={() => setCurrentMonth(new Date())} className="px-3 md:px-4 py-1 text-sm font-medium rounded hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition mx-1 text-gray-700 dark:text-gray-200">
             Today
           </button>
-          <button 
-            onClick={nextMonth}
-            className="p-2 rounded-lg border border-gray-200 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-gray-600 dark:text-gray-300"
-          >
+          <button onClick={nextMonth} className="p-2 rounded hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition text-gray-600 dark:text-gray-300">
             <ChevronRight size={20} />
           </button>
         </div>
-      </header>
-
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-zinc-800">
-          {weekDays.map(day => (
-            <div key={day} className="py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {day}
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-col bg-gray-100 dark:bg-zinc-800 gap-[1px]">
-          {rows}
-        </div>
       </div>
+    )
+  }
 
+  const renderDays = () => {
+    const days = []
+    const startDate = startOfWeek(currentMonth)
+    for (let i = 0; i < 7; i++) {
+      days.push(
+        <div key={i} className="text-center font-medium text-xs md:text-sm text-gray-500 dark:text-gray-400 py-2">
+          {format(addDays(startDate, i), 'EEE')}
+        </div>
+      )
+    }
+    return <div className="grid grid-cols-7 mb-2">{days}</div>
+  }
+
+  const renderCells = () => {
+    const monthStart = startOfMonth(currentMonth)
+    const monthEnd = endOfMonth(monthStart)
+    const startDate = startOfWeek(monthStart)
+    const endDate = endOfWeek(monthEnd)
+
+    const rows = []
+    let days = []
+    let day = startDate
+    let formattedDate = ''
+
+    while (day <= endDate) {
+      for (let i = 0; i < 7; i++) {
+        formattedDate = format(day, 'd')
+        const cloneDay = day
+        
+        // Find tasks spanning this day
+        const dayTasks = tasks?.filter(t => {
+          const start = parseISO(t.start_date)
+          const end = parseISO(t.end_date)
+          start.setHours(0,0,0,0)
+          end.setHours(23,59,59,999)
+          const current = new Date(cloneDay)
+          return current >= start && current <= end
+        }) || []
+
+        days.push(
+          <div
+            key={day.toString()}
+            onClick={() => handleDateClick(cloneDay)}
+            className={`min-h-[80px] md:min-h-[120px] p-1 md:p-2 border-r border-b border-gray-200 dark:border-zinc-800 transition-colors cursor-pointer group
+              ${!isSameMonth(day, monthStart) ? 'bg-gray-50 dark:bg-zinc-900/30 text-gray-400 dark:text-gray-600' : 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100'}
+              ${isSameDay(day, new Date()) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}
+              hover:bg-gray-50 dark:hover:bg-zinc-800/50
+            `}
+          >
+            <div className="flex justify-between items-start">
+              <span className={`text-xs md:text-sm font-medium w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full
+                ${isSameDay(day, new Date()) ? 'bg-blue-600 text-white' : ''}
+              `}>
+                {formattedDate}
+              </span>
+              <PlusCircle size={16} className="text-gray-300 dark:text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block" />
+            </div>
+            
+            <div className="mt-1 md:mt-2 flex flex-col gap-1 overflow-y-auto max-h-[50px] md:max-h-[70px] no-scrollbar">
+              {dayTasks.slice(0, 3).map((task, idx) => (
+                <div 
+                  key={`${task.id}-${idx}`}
+                  onClick={(e) => handleTaskClick(e, task)}
+                  className={`text-[10px] md:text-xs px-1 md:px-1.5 py-0.5 md:py-1 rounded truncate transition-opacity hover:opacity-80
+                    ${task.completed ? 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-400 line-through' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'}
+                  `}
+                >
+                  {task.title}
+                </div>
+              ))}
+              {dayTasks.length > 3 && (
+                <div className="text-[9px] md:text-[10px] text-gray-500 font-medium px-1">
+                  +{dayTasks.length - 3} more
+                </div>
+              )}
+            </div>
+          </div>
+        )
+        day = addDays(day, 1)
+      }
+      rows.push(
+        <div className="grid grid-cols-7" key={day.toString()}>
+          {days}
+        </div>
+      )
+      days = []
+    }
+    return <div className="border-l border-t border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-900 shadow-sm">{rows}</div>
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto mb-20 md:mb-0">
+      {renderHeader()}
+      {renderDays()}
+      {renderCells()}
+      
       <TaskModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         initialDate={selectedDate}
+        editTask={taskToEdit}
       />
-    </>
+    </div>
   )
 }

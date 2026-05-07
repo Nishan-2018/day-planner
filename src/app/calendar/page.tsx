@@ -15,7 +15,7 @@ export default async function CalendarPage() {
   // For a production app, you might want to filter this by the current month to save bandwidth
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('id, title, start_date, end_date, completed')
+    .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { PlusCircle, CheckCircle2, Circle, Clock, Trash2, MessageSquare, Send } from 'lucide-react'
-import { format } from 'date-fns'
+import { PlusCircle, CheckCircle2, Circle, Clock, Trash2, MessageSquare, Send, Edit2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { format, addDays, subDays } from 'date-fns'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { TaskModal } from './TaskModal'
 import { toggleTaskComplete, deleteTask, addTaskComment } from '@/app/actions/tasks'
 
@@ -26,10 +27,13 @@ interface Task {
 
 interface DashboardClientProps {
   tasks: Task[] | null
+  currentDate: string
 }
 
-export function DashboardClient({ tasks }: DashboardClientProps) {
+export function DashboardClient({ tasks, currentDate }: DashboardClientProps) {
+  const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null)
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
   const [commentText, setCommentText] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
@@ -42,31 +46,42 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
     setOptimisticTasks(tasks || [])
   }, [tasks])
 
+  const handlePrevDay = () => {
+    const prev = subDays(new Date(currentDate), 1)
+    router.push(`/?date=${format(prev, 'yyyy-MM-dd')}`)
+  }
+
+  const handleNextDay = () => {
+    const next = addDays(new Date(currentDate), 1)
+    router.push(`/?date=${format(next, 'yyyy-MM-dd')}`)
+  }
+
+  const handleToday = () => {
+    router.push('/')
+  }
+
+  const openEditModal = (task: Task) => {
+    setTaskToEdit(task)
+    setIsModalOpen(true)
+  }
+
   const handleToggle = async (id: string, completed: boolean) => {
-    // 1. Optimistically update UI instantly
     setOptimisticTasks(prev => prev.map(t => t.id === id ? { ...t, completed } : t))
-    
-    // 2. Perform server action in background
     try {
       await toggleTaskComplete(id, completed)
     } catch (error) {
       console.error(error)
-      // Revert if it fails
       setOptimisticTasks(tasks || [])
     }
   }
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this task?')) {
-      // 1. Optimistically remove from UI instantly
       setOptimisticTasks(prev => prev.filter(t => t.id !== id))
-      
-      // 2. Perform server action in background
       try {
         await deleteTask(id)
       } catch (error) {
         console.error(error)
-        // Revert if it fails
         setOptimisticTasks(tasks || [])
       }
     }
@@ -76,15 +91,13 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
     e.preventDefault()
     if (!commentText.trim()) return
 
-    // Create a fake comment to show instantly
     const newCommentText = commentText
     const optimisticComment: Comment = {
-      id: Date.now().toString(), // fake ID
+      id: Date.now().toString(),
       comment: newCommentText,
       created_at: new Date().toISOString()
     }
 
-    // 1. Optimistically add comment to UI instantly
     setOptimisticTasks(prev => prev.map(t => {
       if (t.id === taskId) {
         return { ...t, task_comments: [...(t.task_comments || []), optimisticComment] }
@@ -95,7 +108,6 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
     setCommentText('')
     setIsSubmittingComment(true)
 
-    // 2. Perform server action in background
     try {
       const formData = new FormData()
       formData.append('task_id', taskId)
@@ -103,7 +115,6 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
       await addTaskComment(formData)
     } catch (error) {
       console.error(error)
-      // Revert if it fails
       setOptimisticTasks(tasks || [])
       setCommentText(newCommentText)
     } finally {
@@ -115,17 +126,34 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
     setExpandedTaskId(prev => prev === id ? null : id)
   }
 
+  const displayDate = new Date(currentDate)
+
   return (
     <>
-      <header className="flex justify-between items-center mb-8">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Today</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">
+              {format(displayDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'Today' : format(displayDate, 'EEEE')}
+            </h1>
+            <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-1">
+              <button onClick={handlePrevDay} className="p-1 rounded hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition">
+                <ChevronLeft size={18} />
+              </button>
+              <button onClick={handleToday} className="px-3 py-1 text-sm font-medium rounded hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition mx-1">
+                Today
+              </button>
+              <button onClick={handleNextDay} className="p-1 rounded hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {format(new Date(), 'EEEE, MMMM d')}
+            {format(displayDate, 'MMMM d, yyyy')}
           </p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => { setTaskToEdit(null); setIsModalOpen(true); }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
         >
           <PlusCircle size={20} />
@@ -136,7 +164,7 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
       <div className="space-y-4">
         {optimisticTasks.length === 0 ? (
           <div className="text-center py-12 rounded-xl border-2 border-dashed border-gray-200 dark:border-zinc-800">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">No tasks for today</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">No tasks for this day</h3>
             <p className="mt-1 text-gray-500">Get started by creating a new task.</p>
           </div>
         ) : (
@@ -198,13 +226,22 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
                   </div>
                 </div>
 
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
-                  className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
-                  aria-label="Delete task"
-                >
-                  <Trash2 size={18} />
-                </button>
+                <div className="opacity-0 group-hover:opacity-100 flex items-center transition-all">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); openEditModal(task); }}
+                    className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                    aria-label="Edit task"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDelete(task.id); }}
+                    className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
+                    aria-label="Delete task"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
 
               {/* Expandable Comments Section */}
@@ -253,6 +290,7 @@ export function DashboardClient({ tasks }: DashboardClientProps) {
       <TaskModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
+        editTask={taskToEdit}
       />
     </>
   )
