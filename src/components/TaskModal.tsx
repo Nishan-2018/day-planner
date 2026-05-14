@@ -13,6 +13,7 @@ interface Task {
   duration: number | null
   start_date: string
   end_date: string
+  is_everyday?: boolean
 }
 
 interface TaskModalProps {
@@ -147,6 +148,19 @@ export function TaskModal({ isOpen, onClose, initialDate = new Date(), editTask 
                 <option value="high">High</option>
               </select>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="checkbox"
+              id="is_everyday"
+              name="is_everyday"
+              defaultChecked={editTask?.is_everyday || false}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-zinc-800 focus:ring-2 dark:bg-zinc-700 dark:border-zinc-600"
+            />
+            <label htmlFor="is_everyday" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Everyday Task
+            </label>
           </div>
 
           <div className="pt-4 flex justify-end gap-3">

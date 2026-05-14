@@ -22,6 +22,7 @@ interface Task {
   completed: boolean
   start_date: string
   end_date: string
+  is_everyday: boolean
   task_comments?: Comment[]
 }
 
@@ -209,7 +210,7 @@ export function DashboardClient({ tasks, currentDate }: DashboardClientProps) {
                     </span>
                     
                     <span className="text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-zinc-700 px-2 py-1 rounded-md">
-                      {format(new Date(task.start_date), 'MMM d')} - {format(new Date(task.end_date), 'MMM d')}
+                      {task.is_everyday ? 'Everyday' : `${format(new Date(task.start_date), 'MMM d')} - ${format(new Date(task.end_date), 'MMM d')}`}
                     </span>
                     
                     {task.duration && (

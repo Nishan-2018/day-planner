@@ -28,7 +28,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     `)
     .eq('user_id', user.id)
     .lte('start_date', today)
-    .gte('end_date', today)
+    .or(`end_date.gte.${today},completed.eq.false,is_everyday.eq.true`)
     .order('completed', { ascending: true })
     .order('created_at', { ascending: false })
 

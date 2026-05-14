@@ -1,6 +1,7 @@
 -- Update tasks table to use start_date and end_date instead of due_date
 ALTER TABLE tasks RENAME COLUMN due_date TO end_date;
 ALTER TABLE tasks ADD COLUMN start_date DATE;
+ALTER TABLE tasks ADD COLUMN is_everyday BOOLEAN DEFAULT false;
 
 -- Update the existing data to have start_date same as end_date
 UPDATE tasks SET start_date = end_date WHERE start_date IS NULL;

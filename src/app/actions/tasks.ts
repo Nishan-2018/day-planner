@@ -15,6 +15,7 @@ export async function createTask(formData: FormData) {
   const start_date = formData.get('start_date') as string
   const end_date = formData.get('end_date') as string
   const duration = parseInt(formData.get('duration') as string) || 30
+  const is_everyday = formData.get('is_everyday') === 'on'
 
   const { error } = await supabase
     .from('tasks')
@@ -25,7 +26,8 @@ export async function createTask(formData: FormData) {
       priority,
       start_date,
       end_date,
-      duration
+      duration,
+      is_everyday
     })
 
   if (error) {
@@ -48,6 +50,7 @@ export async function updateTask(taskId: string, formData: FormData) {
   const start_date = formData.get('start_date') as string
   const end_date = formData.get('end_date') as string
   const duration = parseInt(formData.get('duration') as string) || 30
+  const is_everyday = formData.get('is_everyday') === 'on'
 
   const { error } = await supabase
     .from('tasks')
@@ -57,7 +60,8 @@ export async function updateTask(taskId: string, formData: FormData) {
       priority,
       start_date,
       end_date,
-      duration
+      duration,
+      is_everyday
     })
     .eq('id', taskId)
     .eq('user_id', user.id)
